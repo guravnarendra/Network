@@ -169,45 +169,40 @@
             }
             
             function detectNetwork() {
+                // First try the modern API
                 if (navigator.connection) {
                     const connection = navigator.connection;
-                    let type = 'Unknown';
-                    let strength = 'Unknown';
                     
-                    // More precise network type detection
+                    // Try all possible ways to get network type
+                    let type = 'Unknown';
                     if (connection.type) {
-                        switch(connection.type) {
-                            case 'cellular':
-                                if (connection.effectiveType) {
-                                    const effectiveType = connection.effectiveType.toLowerCase();
-                                    if (effectiveType.includes('2g') || effectiveType === 'slow-2g')) {
-                                        type = '2G';
-                                    } else if (effectiveType.includes('3g')) {
-                                        type = '3G';
-                                    } else if (effectiveType.includes('4g')) {
-                                        // Check for 4G+ (LTE Advanced)
-                                        type = (connection.downlinkMax >= 100) ? '4G+' : '4G';
-                                    } else if (effectiveType.includes('5g')) {
-                                        // Only show 5G if explicitly detected
-                                        type = '5G';
-                                    }
-                                } else {
-                                    // Fallback for browsers without effectiveType
-                                    type = '4G'; // Most common default
-                                }
-                                break;
-                            case 'wifi':
-                                type = 'WiFi';
-                                break;
-                            case 'none':
-                                type = 'No Connection';
-                                break;
-                            default:
-                                type = connection.type;
-                        }
+                        type = connection.type;
+                    }
+                    if (connection.effectiveType) {
+                        type = connection.effectiveType;
                     }
                     
-                    // Network strength detection
+                    // Normalize the type
+                    type = type.toLowerCase();
+                    if (type.includes('2g') || type === 'slow-2g') {
+                        type = '2G';
+                    } else if (type.includes('3g')) {
+                        type = '3G';
+                    } else if (type.includes('4g')) {
+                        // Check for 4G+ (LTE Advanced)
+                        type = (connection.downlinkMax >= 100) ? '4G+' : '4G';
+                    } else if (type.includes('5g')) {
+                        type = '5G';
+                    } else if (type === 'wifi') {
+                        type = 'WiFi';
+                    } else if (type === 'none') {
+                        type = 'No Connection';
+                    } else {
+                        type = 'Mobile'; // Generic fallback
+                    }
+                    
+                    // Get strength
+                    let strength = 'Unknown';
                     if (connection.rtt) {
                         if (connection.rtt < 50) strength = 'Excellent';
                         else if (connection.rtt < 100) strength = 'Good';
@@ -221,26 +216,29 @@
                     }
                     
                     updateNetworkDisplay(type, strength);
-                } else {
-                    // Fallback for browsers without Network Information API
-                    detectNetworkFallback();
-                }
-            }
-            
-            function detectNetworkFallback() {
-                // Try to get the actual network type from the device
-                if (window.AndroidGetNetworkType) {
-                    // For Android devices with bridge
-                    const type = window.AndroidGetNetworkType();
-                    updateNetworkDisplay(type, 'Unknown');
-                } else {
-                    // Final fallback - show unknown
-                    updateNetworkDisplay('Unknown', 'Unknown');
+                } 
+                // Fallback for browsers without the API
+                else {
+                    // Try to detect online status at least
+                    if (navigator.onLine) {
+                        updateNetworkDisplay('Mobile', 'Good');
+                    } else {
+                        updateNetworkDisplay('No Connection', 'None');
+                    }
                 }
             }
             
             function updateNetworkDisplay(networkType, strength) {
-                networkTypeElement.textContent = networkType;
+                // Ensure we never show "Detecting..." after the first update
+                if (networkTypeElement.textContent === 'Detecting...') {
+                    networkTypeElement.textContent = networkType;
+                } else {
+                    // Only update if we have a better detection
+                    if (networkType !== 'Unknown' && networkType !== 'Mobile') {
+                        networkTypeElement.textContent = networkType;
+                    }
+                }
+                
                 networkStrengthElement.textContent = `Strength: ${strength}`;
                 
                 // Update icon and color based on network type
@@ -270,7 +268,7 @@
                         networkTypeElement.style.color = '#17a2b8';
                         break;
                     default:
-                        networkIconElement.textContent = '❌';
+                        networkIconElement.textContent = '📶';
                         networkTypeElement.style.color = '#6c757d';
                 }
                 
@@ -278,6 +276,15 @@
                 const now = new Date();
                 lastUpdatedElement.textContent = `Last updated: ${now.toLocaleTimeString()}`;
             }
+            
+            // Add event listener for online/offline status changes
+            window.addEventListener('online', function() {
+                detectNetwork();
+            });
+            
+            window.addEventListener('offline', function() {
+                updateNetworkDisplay('No Connection', 'None');
+            });
         });
     </script>
 </body>
