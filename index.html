@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Status</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f5f5f5;
+            touch-action: pan-y;
+        }
+
+        .container {
+            text-align: center;
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 400px;
+        }
+
+        .network-info {
+            margin: 20px 0;
+        }
+
+        .network-icon {
+            font-size: 60px;
+            margin-bottom: 10px;
+        }
+
+        .network-type {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .network-strength {
+            font-size: 18px;
+            color: #666;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            margin: 20px 0;
+        }
+
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            background-color: #007bff;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        button#auto-refresh-btn.active {
+            background-color: #28a745;
+        }
+
+        .last-updated {
+            font-size: 14px;
+            color: #666;
+            margin-top: 20px;
+        }
+
+        /* Refresh animation */
+        .refreshing {
+            animation: refreshSpin 0.5s linear;
+        }
+
+        @keyframes refreshSpin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Network Status</h1>
+        <div class="network-info">
+            <div class="network-icon" id="network-icon">📶</div>
+            <div class="network-type" id="network-type">Detecting...</div>
+            <div class="network-strength" id="network-strength">Strength: --</div>
+        </div>
+        
+        <div class="controls">
+            <button id="auto-refresh-btn">Auto Refresh: OFF</button>
+            <button id="manual-refresh-btn">Manual Refresh</button>
+        </div>
+        
+        <div class="last-updated" id="last-updated">Last updated: --</div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const networkTypeElement = document.getElementById('network-type');
+            const networkIconElement = document.getElementById('network-icon');
+            const networkStrengthElement = document.getElementById('network-strength');
+            const lastUpdatedElement = document.getElementById('last-updated');
+            const autoRefreshBtn = document.getElementById('auto-refresh-btn');
+            const manualRefreshBtn = document.getElementById('manual-refresh-btn');
+            
+            let autoRefreshInterval = null;
+            let isAutoRefreshOn = false;
+            
+            // Initial detection
+            detectNetwork();
+            
+            // Manual refresh button
+            manualRefreshBtn.addEventListener('click', function() {
+                refreshWithAnimation();
+            });
+            
+            // Auto refresh toggle
+            autoRefreshBtn.addEventListener('click', function() {
+                isAutoRefreshOn = !isAutoRefreshOn;
+                
+                if (isAutoRefreshOn) {
+                    autoRefreshBtn.textContent = 'Auto Refresh: ON';
+                    autoRefreshBtn.classList.add('active');
+                    autoRefreshInterval = setInterval(detectNetwork, 5000); // Refresh every 5 seconds
+                } else {
+                    autoRefreshBtn.textContent = 'Auto Refresh: OFF';
+                    autoRefreshBtn.classList.remove('active');
+                    clearInterval(autoRefreshInterval);
+                }
+            });
+            
+            // Swipe to refresh functionality
+            let touchStartY = 0;
+            let touchEndY = 0;
+            
+            document.addEventListener('touchstart', function(e) {
+                touchStartY = e.changedTouches[0].screenY;
+            }, false);
+            
+            document.addEventListener('touchend', function(e) {
+                touchEndY = e.changedTouches[0].screenY;
+                handleSwipe();
+            }, false);
+            
+            function handleSwipe() {
+                // Check if it's a downward swipe (refresh gesture)
+                if (touchEndY < touchStartY && (touchStartY - touchEndY) > 50) {
+                    refreshWithAnimation();
+                }
+            }
+            
+            function refreshWithAnimation() {
+                networkIconElement.classList.add('refreshing');
+                setTimeout(() => {
+                    networkIconElement.classList.remove('refreshing');
+                }, 500);
+                detectNetwork();
+            }
+            
+            function detectNetwork() {
+                // Try to use the Network Information API if available
+                if (navigator.connection) {
+                    const connection = navigator.connection;
+                    let type = connection.effectiveType || 'Unknown';
+                    
+                    // Map effectiveType to more familiar terms
+                    const typeMap = {
+                        'slow-2g': '2G',
+                        '2g': '2G',
+                        '3g': '3G',
+                        '4g': '4G',
+                        '5g': '5G'
+                    };
+                    
+                    type = typeMap[type.toLowerCase()] || type;
+                    
+                    // Get signal strength (not universally supported)
+                    let strength = 'Unknown';
+                    if (connection.rtt) {
+                        if (connection.rtt < 100) strength = 'Excellent';
+                        else if (connection.rtt < 300) strength = 'Good';
+                        else if (connection.rtt < 600) strength = 'Fair';
+                        else strength = 'Weak';
+                    }
+                    
+                    updateNetworkDisplay(type, strength);
+                } else {
+                    // Fallback: simulate network detection with random results
+                    const networks = ['2G', '3G', '4G', '5G', 'No Signal'];
+                    const strengths = ['Weak', 'Fair', 'Good', 'Excellent'];
+                    
+                    const randomNetwork = networks[Math.floor(Math.random() * networks.length)];
+                    const randomStrength = strengths[Math.floor(Math.random() * strengths.length)];
+                    
+                    updateNetworkDisplay(randomNetwork, randomStrength);
+                }
+            }
+            
+            function updateNetworkDisplay(networkType, strength) {
+                networkTypeElement.textContent = networkType;
+                networkStrengthElement.textContent = `Strength: ${strength}`;
+                
+                // Update icon and color based on network type
+                switch(networkType) {
+                    case '2G':
+                        networkIconElement.textContent = '📶';
+                        networkTypeElement.style.color = '#dc3545';
+                        break;
+                    case '3G':
+                        networkIconElement.textContent = '📶';
+                        networkTypeElement.style.color = '#fd7e14';
+                        break;
+                    case '4G':
+                        networkIconElement.textContent = '📶';
+                        networkTypeElement.style.color = '#007bff';
+                        break;
+                    case '5G':
+                        networkIconElement.textContent = '📶';
+                        networkTypeElement.style.color = '#28a745';
+                        break;
+                    default:
+                        networkIconElement.textContent = '❌';
+                        networkTypeElement.style.color = '#6c757d';
+                }
+                
+                // Update last updated time
+                const now = new Date();
+                lastUpdatedElement.textContent = `Last updated: ${now.toLocaleTimeString()}`;
+            }
+        });
+    </script>
+</body>
+</html>
