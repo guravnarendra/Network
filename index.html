@@ -133,7 +133,7 @@
                 if (isAutoRefreshOn) {
                     autoRefreshBtn.textContent = 'Auto Refresh: ON';
                     autoRefreshBtn.classList.add('active');
-                    autoRefreshInterval = setInterval(detectNetwork, 5000); // Refresh every 5 seconds
+                    autoRefreshInterval = setInterval(detectNetwork, 5000);
                 } else {
                     autoRefreshBtn.textContent = 'Auto Refresh: OFF';
                     autoRefreshBtn.classList.remove('active');
@@ -155,7 +155,6 @@
             }, false);
             
             function handleSwipe() {
-                // Check if it's a downward swipe (refresh gesture)
                 if (touchEndY < touchStartY && (touchStartY - touchEndY) > 50) {
                     refreshWithAnimation();
                 }
@@ -170,41 +169,49 @@
             }
             
             function detectNetwork() {
-                // First try to use the Network Information API if available
                 if (navigator.connection) {
                     const connection = navigator.connection;
-                    
-                    // Try different properties to get the most accurate network type
                     let type = 'Unknown';
+                    let strength = 'Unknown';
                     
-                    // Check for 5G first (some Android devices)
-                    if (connection.type === 'cellular' && connection.downlinkMax >= 50) {
-                        type = '5G';
-                    } 
-                    // Check effectiveType (Chrome)
-                    else if (connection.effectiveType) {
-                        const effectiveType = connection.effectiveType.toLowerCase();
-                        if (effectiveType.includes('2g') || effectiveType === 'slow-2g') {
-                            type = '2G';
-                        } else if (effectiveType.includes('3g')) {
-                            type = '3G';
-                        } else if (effectiveType.includes('4g')) {
-                            type = '4G';
-                        } else if (effectiveType.includes('5g')) {
-                            type = '5G';
+                    // More precise network type detection
+                    if (connection.type) {
+                        switch(connection.type) {
+                            case 'cellular':
+                                if (connection.effectiveType) {
+                                    const effectiveType = connection.effectiveType.toLowerCase();
+                                    if (effectiveType.includes('2g') || effectiveType === 'slow-2g')) {
+                                        type = '2G';
+                                    } else if (effectiveType.includes('3g')) {
+                                        type = '3G';
+                                    } else if (effectiveType.includes('4g')) {
+                                        // Check for 4G+ (LTE Advanced)
+                                        type = (connection.downlinkMax >= 100) ? '4G+' : '4G';
+                                    } else if (effectiveType.includes('5g')) {
+                                        // Only show 5G if explicitly detected
+                                        type = '5G';
+                                    }
+                                } else {
+                                    // Fallback for browsers without effectiveType
+                                    type = '4G'; // Most common default
+                                }
+                                break;
+                            case 'wifi':
+                                type = 'WiFi';
+                                break;
+                            case 'none':
+                                type = 'No Connection';
+                                break;
+                            default:
+                                type = connection.type;
                         }
                     }
-                    // Fallback to type property
-                    else if (connection.type) {
-                        type = connection.type.toUpperCase();
-                    }
                     
-                    // Get signal strength (not universally supported)
-                    let strength = 'Unknown';
+                    // Network strength detection
                     if (connection.rtt) {
-                        if (connection.rtt < 100) strength = 'Excellent';
-                        else if (connection.rtt < 300) strength = 'Good';
-                        else if (connection.rtt < 600) strength = 'Fair';
+                        if (connection.rtt < 50) strength = 'Excellent';
+                        else if (connection.rtt < 100) strength = 'Good';
+                        else if (connection.rtt < 300) strength = 'Fair';
                         else strength = 'Weak';
                     } else if (connection.downlink) {
                         if (connection.downlink > 10) strength = 'Excellent';
@@ -214,45 +221,22 @@
                     }
                     
                     updateNetworkDisplay(type, strength);
-                } 
-                // Fallback for browsers that don't support the API
-                else {
+                } else {
+                    // Fallback for browsers without Network Information API
                     detectNetworkFallback();
                 }
             }
             
             function detectNetworkFallback() {
-                // Try to detect network type by measuring download speed
-                const testUrl = 'https://httpbin.org/stream-bytes/1024?seed=' + Date.now();
-                const startTime = Date.now();
-                
-                fetch(testUrl, { mode: 'no-cors', cache: 'no-store' })
-                    .then(() => {
-                        const duration = (Date.now() - startTime) / 1000; // in seconds
-                        const speed = 1 / duration; // MB/s (approx)
-                        
-                        let type = 'Unknown';
-                        let strength = 'Unknown';
-                        
-                        if (speed > 10) {
-                            type = '5G';
-                            strength = 'Excellent';
-                        } else if (speed > 2) {
-                            type = '4G';
-                            strength = speed > 5 ? 'Good' : 'Fair';
-                        } else if (speed > 0.2) {
-                            type = '3G';
-                            strength = speed > 1 ? 'Fair' : 'Weak';
-                        } else {
-                            type = '2G';
-                            strength = 'Weak';
-                        }
-                        
-                        updateNetworkDisplay(type, strength);
-                    })
-                    .catch(() => {
-                        updateNetworkDisplay('No Connection', 'None');
-                    });
+                // Try to get the actual network type from the device
+                if (window.AndroidGetNetworkType) {
+                    // For Android devices with bridge
+                    const type = window.AndroidGetNetworkType();
+                    updateNetworkDisplay(type, 'Unknown');
+                } else {
+                    // Final fallback - show unknown
+                    updateNetworkDisplay('Unknown', 'Unknown');
+                }
             }
             
             function updateNetworkDisplay(networkType, strength) {
@@ -260,7 +244,7 @@
                 networkStrengthElement.textContent = `Strength: ${strength}`;
                 
                 // Update icon and color based on network type
-                switch(networkType.toUpperCase()) {
+                switch(networkType) {
                     case '2G':
                         networkIconElement.textContent = '📶';
                         networkTypeElement.style.color = '#dc3545';
@@ -273,9 +257,17 @@
                         networkIconElement.textContent = '📶';
                         networkTypeElement.style.color = '#007bff';
                         break;
+                    case '4G+':
+                        networkIconElement.textContent = '📶+';
+                        networkTypeElement.style.color = '#6610f2';
+                        break;
                     case '5G':
                         networkIconElement.textContent = '📶';
                         networkTypeElement.style.color = '#28a745';
+                        break;
+                    case 'WiFi':
+                        networkIconElement.textContent = '📡';
+                        networkTypeElement.style.color = '#17a2b8';
                         break;
                     default:
                         networkIconElement.textContent = '❌';
